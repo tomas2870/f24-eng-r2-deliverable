@@ -21,6 +21,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState, type BaseSyntheticEvent } from "react";
 import { useForm } from "react-hook-form";
+import wiki from "wikipedia";
 import { z } from "zod";
 
 // We use zod (z) to define a schema for the "Add species" form.
@@ -89,6 +90,29 @@ export default function AddSpeciesDialog({ userId }: { userId: string }) {
     mode: "onChange",
   });
 
+  const autoFill = async (input: string) => {
+    // When triggered, call wikipedia summary API
+    try {
+      const page = await wiki.page(input);
+      const summary = await page.summary();
+      console.log(summary.extract);
+      form.setValue("description", summary.extract);
+      form.setValue("image", summary.originalimage.source);
+      return toast({
+        title: "Autofill succeeded!",
+        description: "The image and description were autofilled from Wikipedia.",
+      });
+    } catch (error) {
+      return toast({
+        title: "Autofill not available.",
+        description: "There are no items matching your search.",
+        variant: "destructive",
+      });
+    }
+    // Modify form fields to the autofill version: form.setvalue
+    // form.setValue("description", "TESTING THIS");
+  };
+
   const onSubmit = async (input: FormData) => {
     // The `input` prop contains data that has already been processed by zod. We can now use it in a supabase query
     const supabase = createBrowserSupabaseClient();
@@ -152,6 +176,58 @@ export default function AddSpeciesDialog({ userId }: { userId: string }) {
             <div className="grid w-full items-center gap-4">
               <FormField
                 control={form.control}
+                name="common_name"
+                render={({ field }) => {
+                  // We must extract value from field and convert a potential defaultValue of `null` to "" because inputs can't handle null values
+                  const { value, ...rest } = field;
+
+                  // Define the async function to be called when the magnifying glass is clicked
+                  const handleAutoFill = async () => {
+                    try {
+                      // If not null, then value, else empty string
+                      await autoFill(value ?? ""); // Call the autoFill function that you will define elsewhere
+                    } catch (error) {
+                      console.error("Error autofilling data:", error);
+                    }
+                  };
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Common Name</FormLabel>
+                      <FormControl>
+                        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                          <Input
+                            value={value ?? ""}
+                            placeholder="Guinea pig"
+                            {...rest}
+                            style={{ paddingRight: "40px" }} // Ensure space for the button
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleAutoFill(); // Ensure that the function call is treated as returning void
+                            }} // I was having an error where calling the handleAutoFill would say that it was expecting void but was being promised a return instead bc async
+                            // I wrapped it in this anonymous function to ensure that it outputs void
+                            // We don't need to wait for the auto fill to keep going
+                            style={{
+                              position: "absolute",
+                              right: "10px",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            🔍 {/* You can replace this with an actual icon if needed */}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+              <FormField
+                control={form.control}
                 name="scientific_name"
                 render={({ field }) => (
                   <FormItem>
@@ -162,23 +238,6 @@ export default function AddSpeciesDialog({ userId }: { userId: string }) {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name="common_name"
-                render={({ field }) => {
-                  // We must extract value from field and convert a potential defaultValue of `null` to "" because inputs can't handle null values: https://github.com/orgs/react-hook-form/discussions/4091
-                  const { value, ...rest } = field;
-                  return (
-                    <FormItem>
-                      <FormLabel>Common Name</FormLabel>
-                      <FormControl>
-                        <Input value={value ?? ""} placeholder="Guinea pig" {...rest} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  );
-                }}
               />
               <FormField
                 control={form.control}

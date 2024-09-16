@@ -117,6 +117,7 @@ export default function SpeciesDetailsDialog({ species, currentUser }: { species
     setIsEditing(false);
   };
 
+  // Async allows the rest of the app to keep running while this is deleted
   const handleDelete = async (e: MouseEvent) => {
     e.preventDefault();
     if (!window.confirm("Delete the species?")) {
@@ -125,6 +126,7 @@ export default function SpeciesDetailsDialog({ species, currentUser }: { species
 
     const supabase = createBrowserSupabaseClient();
 
+    // Instead of fire and forgetting, wait for response from server and determine if there is error
     const { error } = await supabase.from("species").delete().eq("id", species.id);
 
     if (error) {
